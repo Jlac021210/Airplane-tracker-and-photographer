@@ -1,1 +1,5 @@
 To use this u need a G Mouse, RTL SDR, and dump1090. All drivers must be installed. Add dump1090 by making a folder called dump1090 after downloading it, run the setup and make sure it works prior to starting the Main java file.
+
+Make a lib folder and add MarineAPI(for cordinate conversion), and JSerial.
+https://github.com/ktuukkan/marine-api
+https://fazecast.github.io/jSerialComm/
