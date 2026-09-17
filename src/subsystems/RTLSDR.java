@@ -23,7 +23,7 @@ public class RTLSDR {
     private final Map<String, Plane> planeMap = new HashMap<>(); 
 
     public RTLSDR(double lat, double lon) { 
-        String cfgFile = "C:\\Users\\jack\\Airplane\\dump1090\\dump1090.cfg"; 
+        String cfgFile = "dump1090/dump1090.cfg";
         try { 
             Path path = Path.of(cfgFile); 
             String content = Files.readString(path); 
@@ -37,10 +37,10 @@ public class RTLSDR {
             e.printStackTrace(); 
         } 
 
-        String dump1090Exe = "C:\\Users\\jack\\Airplane\\dump1090\\dump1090.exe";
+        String dump1090Exe = "dump1090.exe";
         try { 
         ProcessBuilder pb = new ProcessBuilder("cmd.exe", "/c", "start", "\"dump1090\"", dump1090Exe, "--net"); 
-            pb.directory(new File("C:\\Users\\jack\\Airplane\\dump1090")); 
+            pb.directory(new File("dump1090"));
             System.out.println("process built");
             pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
             pb.redirectError(ProcessBuilder.Redirect.INHERIT);
