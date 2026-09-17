@@ -23,5 +23,6 @@ hs_err_pid*
 replay_pid*
 
 dump1090/*
+!dump1090/.gitkeep
 .vscode/
 bin/
