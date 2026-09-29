@@ -13,14 +13,18 @@ import src.model.Plane;
 import java.io.IOException; 
 import java.nio.file.Files; 
 import java.nio.file.Path; 
-import java.io.File; 
+import java.io.File;
+
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import java.time.Duration;
 
 public class RTLSDR { 
     private String host = "127.0.0.1"; 
     private int port = 30003; 
     private boolean running = false; 
     private Process dump1090Process; 
-    private final Map<String, Plane> planeMap = new HashMap<>(); 
+    private final Cache<String, Plane> planeCache = CacheBuilder.newBuilder().expireAfterWrite(Duration.ofSeconds(10)).build(); 
 
     public RTLSDR(double lat, double lon) { 
         String cfgFile = "dump1090/dump1090.cfg";
@@ -51,6 +55,48 @@ public class RTLSDR {
         } 
     } 
 
+    private void listenToSocket() {
+        try {
+            Thread.sleep(1500);
+        }catch(InterruptedException e){
+            return; 
+        }
+        try (Socket socket = new Socket(host, port);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+                while(running){
+                    String line = reader.readLine();
+                    if(line == null){
+                        System.out.println("Data stream is empty");
+                        break;
+                    }
+                parseBaseStationLine(line);
+                }   
+            }catch (Exception e){
+                if(running){
+                    System.out.println("Error when trying to read data stream, "+e.getMessage());
+                }
+            }
+        }
+    
+    private void parseBaseStationLine(String line){
+        String tokens[] = line.split(",", -1);
+
+        if (tokens.length<22 || !tokens[0].equals("MSG")){
+            return;
+        }
+        Cache<String, String> tokenCache = CacheBuilder.newBuilder()
+            .expireAfterWrite(Duration.ofSeconds(10))
+            .build();
+
+
+        String transmissionType = tokens[1];
+        String icaoAddress = tokens[4];
+        String altitude = tokens[11];
+        String latitude = tokens[14];
+        String longitude = tokens[15];
+
+    }
+    
     public void stop() { 
         if (dump1090Process != null && dump1090Process.isAlive()) { 
             dump1090Process.destroy(); 

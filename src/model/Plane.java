@@ -6,8 +6,10 @@ public class Plane {
     private double latitude;
     private double longitude;
     private double altitude;
+    private long lastSeen;
 
     public Plane(String icaOaci, String callsign, double latitude, double longitude, double altitude) {
+        updateTimestamp();
         this.icaOaci = icaOaci;
         this.callsign = callsign;
         this.latitude = latitude;
@@ -29,13 +31,22 @@ public class Plane {
     public double getAltitude() {
         return altitude;
     }
+    public long getLastSeen(){
+        return lastSeen;
+    }
     public void setLatitude(double latitude) {
+        updateTimestamp();
         this.latitude = latitude;
     }
     public void setLongitude(double longitude) {
+        updateTimestamp();
         this.longitude = longitude;
     }
     public void setAltitude(double altitude) {
+        updateTimestamp();
         this.altitude = altitude;
+    }
+    private void updateTimestamp(){
+        this.lastSeen = System.currentTimeMillis();
     }
 }
