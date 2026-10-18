@@ -6,17 +6,15 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.Consumer;
 
 import org.opensky.libadsb.ModeSDecoder;
 import org.opensky.libadsb.Position;
 import org.opensky.libadsb.exceptions.BadFormatException;
 import org.opensky.libadsb.exceptions.UnspecifiedFormatError;
 import org.opensky.libadsb.msgs.AirbornePositionV0Msg;
+import org.opensky.libadsb.msgs.ExtendedSquitter;
 import org.opensky.libadsb.msgs.IdentificationMsg;
 import org.opensky.libadsb.msgs.ModeSReply;
-import org.opensky.libadsb.msgs.SurfacePositionV0Msg;
-import org.opensky.libadsb.tools;
 import org.usb4java.BufferUtils;
 import org.usb4java.ConfigDescriptor;
 import org.usb4java.Context;
@@ -40,11 +38,15 @@ public class RTLSDR {
     private static final int FC0013_CHIP_ID = 0xa3;
     private static final int RTL_SAMPLE_RATE = 2_000_000;
     private static final int ADSB_FREQUENCY = 1_090_000_000;
+    private static final int MODE_S_CRC_POLYNOMIAL = 0xfff409;
+    private static final int MODE_S_DATA_BITS = 88;
+    private static final int MODE_S_FRAME_BITS = 112;
     private static final int USB_INTERFACE = 0;
     private static final int BULK_IN_ENDPOINT = 0x81;
     private static final int USB_READ_SIZE = 16 * 1024;
     private static final byte VENDOR_OUT =
         (byte) (LibUsb.REQUEST_TYPE_VENDOR | LibUsb.ENDPOINT_OUT);
+    private static final int[] MODE_S_SINGLE_BIT_SYNDROMES = createSingleBitSyndromes();
 
     private final Cache<String, Plane> planeCache = CacheBuilder.newBuilder()
         .expireAfterAccess(Duration.ofSeconds(60))
@@ -62,7 +64,8 @@ public class RTLSDR {
     private final ModeSDecoder decoder = new ModeSDecoder();
     private final Thread receiverThread;
     private volatile boolean running = true;
-    private long rejectedFrameCount;
+    private volatile double maximumAircraftDistanceKm = Double.NaN;
+    private volatile String maximumDistanceAircraft;
 
     public RTLSDR(double lat, double lon) {
         if (!Double.isFinite(lat) || lat < -90 || lat > 90
@@ -109,63 +112,56 @@ public class RTLSDR {
         }
     }
 
-    private void decodeFrame(byte[] frame) {
+    private void decodeFrame(byte[] frame, long[] weakBits) {
         try {
-            ModeSReply reply = decoder.decode(frame);
-            if (!tools.isZero(reply.getParity()) && !reply.checkParity()) {
-                rejectedFrameCount++;
-                if (rejectedFrameCount % 100_000 == 0) {
-                    System.err.println("Rejected " + rejectedFrameCount
-                        + " Mode-S candidates with invalid parity; check antenna and signal quality.");
-                }
+            ModeSReply rawReply = new ModeSReply(frame);
+            int downlinkFormat = rawReply.getDownlinkFormat();
+            if (downlinkFormat != 17 && downlinkFormat != 18) {
                 return;
             }
-            String icao = String.format(Locale.ROOT, "%06X", reply.getTransponderAddress());
-
-            if (reply instanceof IdentificationMsg) {
-                String callsign = new String(((IdentificationMsg) reply).getIdentity()).trim();
-                if (!callsign.isEmpty()) {
-                    String oldCallsign = callsignCache.getIfPresent(icao);
-                    callsignCache.put(icao, callsign);
-                    Plane previous = planeCache.getIfPresent(icao);
-                    if (previous != null) {
-                        planeCache.put(icao, new Plane(icao, callsign, previous.getLatitude(),
-                            previous.getLongitude(), previous.getAltitude()));
-                    }
-                    if (!callsign.equals(oldCallsign)) {
-                        System.out.printf("Aircraft %s identified as %s%n", icao, callsign);
-                    }
+            boolean bitCorrected = false;
+            if (!rawReply.checkParity()) {
+                rawReply = correctSingleBitError(frame, weakBits, rawReply);
+                if (rawReply == null) {
+                    return;
                 }
+                bitCorrected = true;
+            }
+            String icao = String.format(Locale.ROOT, "%06X", rawReply.getTransponderAddress());
+
+            ExtendedSquitter squitter = new ExtendedSquitter(rawReply);
+            int typeCode = squitter.getFormatTypeCode();
+            if (typeCode >= 1 && typeCode <= 4) {
+                updateCallsign(icao, new IdentificationMsg(squitter), bitCorrected);
+                reportDetectionIfNew(icao);
+                return;
             }
 
+            ModeSReply reply = decoder.decode(rawReply);
             if (!ModeSDecoder.isPosition(reply)) {
                 reportDetectionIfNew(icao);
                 return;
             }
 
-            Position position;
-            double altitude = 0.0;
-            if (ModeSDecoder.isAirbornePosition(reply)) {
-                AirbornePositionV0Msg airborne = (AirbornePositionV0Msg) reply;
-                if (airborne.hasAltitude()) {
-                    altitude = airborne.getAltitude();
-                }
-                position = airborne.getLocalPosition(receiverPosition);
-                if (position == null) {
-                    position = decoder.decodePosition(System.currentTimeMillis(), airborne, receiverPosition);
-                }
-            } else {
-                SurfacePositionV0Msg surface = (SurfacePositionV0Msg) reply;
-                position = surface.getLocalPosition(receiverPosition);
-                if (position == null) {
-                    position = decoder.decodePosition(System.currentTimeMillis(), surface, receiverPosition);
-                }
+            if (!ModeSDecoder.isAirbornePosition(reply)) {
+                reportDetectionIfNew(icao);
+                return;
             }
 
-            Plane previous = planeCache.getIfPresent(icao);
-            if (previous != null && altitude == 0.0) {
-                altitude = previous.getAltitude();
+            AirbornePositionV0Msg airborne = (AirbornePositionV0Msg) reply;
+            if (!airborne.hasPosition()) {
+                reportDetectionIfNew(icao);
+                return;
             }
+
+            double altitude = Double.NaN;
+            Integer reportedAltitude = airborne.getAltitude();
+            if (airborne.hasAltitude() && reportedAltitude != null) {
+                altitude = reportedAltitude;
+            }
+            Position position = decoder.decodePosition(System.currentTimeMillis(), airborne, null);
+
+            Plane previous = planeCache.getIfPresent(icao);
             String callsign = callsignCache.getIfPresent(icao);
 
             if (position == null || position.getLatitude() == null || position.getLongitude() == null) {
@@ -181,15 +177,115 @@ public class RTLSDR {
             }
 
             planeCache.put(icao, new Plane(icao, callsign, latitude, longitude, altitude));
-            if (previous == null || Math.abs(previous.getLatitude() - latitude) > 0.00001
-                || Math.abs(previous.getLongitude() - longitude) > 0.00001) {
+            boolean positionChanged = previous == null
+                || Math.abs(previous.getLatitude() - latitude) > 0.00001
+                || Math.abs(previous.getLongitude() - longitude) > 0.00001;
+            boolean altitudeChanged = previous == null
+                || Double.compare(previous.getAltitude(), altitude) != 0;
+            if (positionChanged || altitudeChanged) {
+                String altitudeText = Double.isFinite(altitude)
+                    ? String.format(Locale.ROOT, "%.0f ft", altitude)
+                    : "unknown";
                 System.out.printf(Locale.ROOT,
-                    "Aircraft %s%s: lat=%.5f lon=%.5f alt=%.0f ft%n",
+                    "Aircraft %s%s%s: lat=%.5f lon=%.5f alt=%s%n",
                     icao, callsign == null ? "" : " (" + callsign + ")",
-                    latitude, longitude, altitude);
+                    bitCorrected ? " [single-bit CRC correction]" : "",
+                    latitude, longitude, altitudeText);
             }
+            updateMaximumAircraftDistance();
         } catch (BadFormatException | UnspecifiedFormatError e) {
             // A preamble candidate that fails Mode-S validation is normal in noisy RF samples.
+        }
+    }
+
+    private static ModeSReply correctSingleBitError(byte[] frame, long[] weakBits,
+        ModeSReply originalReply)
+        throws BadFormatException {
+        if (frame.length * Byte.SIZE != MODE_S_FRAME_BITS || weakBits.length < 2) {
+            return null;
+        }
+
+        int syndrome = calculateModeSCrc(frame) ^ readParity(frame);
+        int correctionBit = -1;
+        for (int bit = 5; bit < MODE_S_FRAME_BITS; bit++) {
+            if (MODE_S_SINGLE_BIT_SYNDROMES[bit] == syndrome) {
+                if (correctionBit >= 0) {
+                    return null;
+                }
+                correctionBit = bit;
+            }
+        }
+        if (correctionBit < 0
+            || (weakBits[correctionBit / Long.SIZE] & (1L << (correctionBit % Long.SIZE))) == 0) {
+            return null;
+        }
+
+        int byteIndex = correctionBit / Byte.SIZE;
+        int bitMask = 1 << (7 - correctionBit % Byte.SIZE);
+        frame[byteIndex] ^= (byte) bitMask;
+        try {
+            ModeSReply correctedReply = new ModeSReply(frame);
+            int correctedFormat = correctedReply.getDownlinkFormat();
+            if (correctedFormat == originalReply.getDownlinkFormat()
+                && (correctedFormat == 17 || correctedFormat == 18)
+                && correctedReply.checkParity()) {
+                return correctedReply;
+            }
+        } finally {
+            frame[byteIndex] ^= (byte) bitMask;
+        }
+        return null;
+    }
+
+    private static int[] createSingleBitSyndromes() {
+        int[] syndromes = new int[MODE_S_FRAME_BITS];
+        for (int bit = 0; bit < MODE_S_DATA_BITS; bit++) {
+            byte[] oneBitMessage = new byte[MODE_S_DATA_BITS / Byte.SIZE];
+            oneBitMessage[bit / Byte.SIZE] = (byte) (1 << (7 - bit % Byte.SIZE));
+            syndromes[bit] = calculateModeSCrc(oneBitMessage);
+        }
+        for (int bit = MODE_S_DATA_BITS; bit < MODE_S_FRAME_BITS; bit++) {
+            syndromes[bit] = 1 << (MODE_S_FRAME_BITS - 1 - bit);
+        }
+        return syndromes;
+    }
+
+    private static int calculateModeSCrc(byte[] frame) {
+        int remainder = 0;
+        for (int bit = 0; bit < MODE_S_DATA_BITS; bit++) {
+            int messageBit = (frame[bit / Byte.SIZE] >>> (7 - bit % Byte.SIZE)) & 1;
+            int feedback = ((remainder >>> 23) & 1) ^ messageBit;
+            remainder = (remainder << 1) & 0xffffff;
+            if (feedback != 0) {
+                remainder ^= MODE_S_CRC_POLYNOMIAL;
+            }
+        }
+        return remainder;
+    }
+
+    private static int readParity(byte[] frame) {
+        int parityOffset = MODE_S_DATA_BITS / Byte.SIZE;
+        return ((frame[parityOffset] & 0xff) << 16)
+            | ((frame[parityOffset + 1] & 0xff) << 8)
+            | (frame[parityOffset + 2] & 0xff);
+    }
+
+    private void updateCallsign(String icao, IdentificationMsg identification, boolean bitCorrected) {
+        String callsign = new String(identification.getIdentity()).trim();
+        if (callsign.isEmpty()) {
+            return;
+        }
+
+        String oldCallsign = callsignCache.getIfPresent(icao);
+        callsignCache.put(icao, callsign);
+        Plane previous = planeCache.getIfPresent(icao);
+        if (previous != null) {
+            planeCache.put(icao, new Plane(icao, callsign, previous.getLatitude(),
+                previous.getLongitude(), previous.getAltitude()));
+        }
+        if (!callsign.equals(oldCallsign)) {
+            System.out.printf("Aircraft %s identified as %s%s%n", icao, callsign,
+                bitCorrected ? " [single-bit CRC correction]" : "");
         }
     }
 
@@ -201,6 +297,58 @@ public class RTLSDR {
 
     public List<Plane> getPlanes() {
         return new ArrayList<>(planeCache.asMap().values());
+    }
+
+    public double getMaximumAircraftDistanceKm() {
+        updateMaximumAircraftDistance();
+        return maximumAircraftDistanceKm;
+    }
+
+    private synchronized void updateMaximumAircraftDistance() {
+        planeCache.cleanUp();
+        Plane farthestPlane = null;
+        double farthestDistanceKm = -1.0;
+
+        for (Plane plane : planeCache.asMap().values()) {
+            double distanceKm = distanceKm(receiverPosition.getLatitude(), receiverPosition.getLongitude(),
+                plane.getLatitude(), plane.getLongitude());
+            if (distanceKm > farthestDistanceKm) {
+                farthestDistanceKm = distanceKm;
+                farthestPlane = plane;
+            }
+        }
+
+        if (farthestPlane == null) {
+            maximumAircraftDistanceKm = Double.NaN;
+            maximumDistanceAircraft = null;
+            return;
+        }
+
+        boolean newFarthestAircraft = !farthestPlane.getIcaOaci().equals(maximumDistanceAircraft);
+        boolean radiusChanged = !Double.isFinite(maximumAircraftDistanceKm)
+            || Math.abs(farthestDistanceKm - maximumAircraftDistanceKm) >= 0.1;
+        maximumAircraftDistanceKm = farthestDistanceKm;
+        maximumDistanceAircraft = farthestPlane.getIcaOaci();
+
+        if (newFarthestAircraft || radiusChanged) {
+            String callsign = farthestPlane.getCallsign();
+            System.out.printf(Locale.ROOT,
+                "Current max decoded-flight radius: %.1f km (%.1f mi) - %s%s%n",
+                farthestDistanceKm, farthestDistanceKm * 0.621371,
+                callsign == null ? "" : callsign + " / ",
+                farthestPlane.getIcaOaci());
+        }
+    }
+
+    private double distanceKm(double latitude1, double longitude1, double latitude2, double longitude2) {
+        double latitudeDelta = Math.toRadians(latitude2 - latitude1);
+        double longitudeDelta = Math.toRadians(longitude2 - longitude1);
+        double firstLatitude = Math.toRadians(latitude1);
+        double secondLatitude = Math.toRadians(latitude2);
+        double haversine = Math.sin(latitudeDelta / 2) * Math.sin(latitudeDelta / 2)
+            + Math.cos(firstLatitude) * Math.cos(secondLatitude)
+            * Math.sin(longitudeDelta / 2) * Math.sin(longitudeDelta / 2);
+        return 6371.0088 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
     }
 
     public void stop() {
@@ -239,6 +387,7 @@ public class RTLSDR {
             checkUsb(LibUsb.init(context), "initializing usb4java");
             DeviceList devices = new DeviceList();
             DeviceHandle handle = null;
+            boolean opened = false;
             boolean claimed = false;
             try {
                 long count = LibUsb.getDeviceList(context, devices);
@@ -253,7 +402,12 @@ public class RTLSDR {
                     if ((descriptor.idVendor() & 0xffff) == USB_VENDOR_ID
                         && (descriptor.idProduct() & 0xffff) == USB_PRODUCT_ID) {
                         handle = new DeviceHandle();
-                        checkUsb(LibUsb.open(device, handle), "opening RTL2832U USB device");
+                        int result = LibUsb.open(device, handle);
+                        if (result != LibUsb.SUCCESS) {
+                            handle = null;
+                            checkUsb(result, "opening RTL2832U USB device");
+                        }
+                        opened = true;
                         break;
                     }
                 }
@@ -275,7 +429,7 @@ public class RTLSDR {
                 if (claimed) {
                     LibUsb.releaseInterface(handle, USB_INTERFACE);
                 }
-                if (handle != null) {
+                if (opened) {
                     LibUsb.close(handle);
                 }
                 LibUsb.exit(context);
@@ -579,6 +733,11 @@ public class RTLSDR {
         }
     }
 
+    @FunctionalInterface
+    private interface FrameConsumer {
+        void accept(byte[] frame, long[] weakBits);
+    }
+
     private static final class ModeSFrameDemodulator {
         private static final int PREAMBLE_SAMPLES = 16;
         private static final int SAMPLE_RING_SIZE = 512;
@@ -587,13 +746,13 @@ public class RTLSDR {
         private static final int MODE_S_LONG_BYTES = 14;
 
         private final int[] sampleRing = new int[SAMPLE_RING_SIZE];
-        private final Consumer<byte[]> frameConsumer;
+        private final FrameConsumer frameConsumer;
         private long sampleCount;
         private long candidateStart = -1;
         private long nextSearchSample;
         private int expectedFrameBytes;
 
-        private ModeSFrameDemodulator(Consumer<byte[]> frameConsumer) {
+        private ModeSFrameDemodulator(FrameConsumer frameConsumer) {
             this.frameConsumer = frameConsumer;
         }
 
@@ -641,19 +800,30 @@ public class RTLSDR {
             }
 
             byte[] frame = new byte[expectedFrameBytes];
+            long[] weakBits = new long[(expectedFrameBytes * Byte.SIZE + Long.SIZE - 1) / Long.SIZE];
             for (int bit = 0; bit < expectedFrameBytes * 8; bit++) {
-                if (readBit(firstDataSample + bit * 2L) != 0) {
+                long firstHalfSample = firstDataSample + bit * 2L;
+                if (readBit(firstHalfSample) != 0) {
                     frame[bit / 8] |= (byte) (1 << (7 - bit % 8));
+                }
+                if (isWeakBit(firstHalfSample)) {
+                    weakBits[bit / Long.SIZE] |= 1L << (bit % Long.SIZE);
                 }
             }
             long frameStart = candidateStart;
             candidateStart = -1;
             nextSearchSample = frameStart + 1;
-            frameConsumer.accept(frame);
+            frameConsumer.accept(frame, weakBits);
         }
 
         private int readBit(long firstHalfSample) {
             return sampleAt(firstHalfSample) > sampleAt(firstHalfSample + 1) ? 1 : 0;
+        }
+
+        private boolean isWeakBit(long firstHalfSample) {
+            int first = sampleAt(firstHalfSample);
+            int second = sampleAt(firstHalfSample + 1);
+            return Math.abs(first - second) <= Math.max(24, Math.max(first, second) / 8);
         }
 
         private boolean hasModeSPreamble(long start) {
