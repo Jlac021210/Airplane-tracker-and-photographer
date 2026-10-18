@@ -19,3 +19,4 @@ Hello, this is a passion project I have been working on for a few months. It rec
 The Java `RTLSDR` subsystem accesses the RTL2832U over USB using usb4java, tunes the FC0013 to 1090 MHz, captures I/Q samples, detects Mode-S frames, and decodes them using the bundled `libadsb` library. It prints aircraft identification and decoded latitude, longitude, and altitude as messages arrive. Recent aircraft positions are available through `RTLSDR.getPlanes()`.
 
 The project includes usb4java's Windows x64 native binding. The RTL-SDR must be installed with a WinUSB-compatible driver and must not be in use by another application. Start the Java program and type `quit` to stop receiving.
+###Most of RTLSDR.java was written by GPT-5.6 Luna due to the complexity of decoding the radio signals and I could not figure out how to do it myself.
