@@ -34,10 +34,10 @@ public class Gps {
                 try {
                     if (line.contains("GGA")) {
                         GGASentence gga = (GGASentence) factory.createParser(line);
-                        Position p = gga.getPosition();
+                        Position position = gga.getPosition();
                         
-                        if (p != null && p.getLatitude() != 0.0 && p.getLongitude() != 0.0) {
-                            pos = p;
+                        if (position != null && position.getLatitude() != 0.0 && position.getLongitude() != 0.0) {
+                            pos = position;
                             alt = gga.getAltitude(); 
                             break;
                         }
