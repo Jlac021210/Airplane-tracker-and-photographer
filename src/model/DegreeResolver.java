@@ -1,7 +1,11 @@
 package src.model;
 
 import src.subsystems.Gps;
+<<<<<<< HEAD
 //this SHOULD work, but i have not tested it yet due to no planes flying overhead when i made it... it uses the haversine formula so the math is right but it may be implemented wrong.
+=======
+
+>>>>>>> 82629b2ac5db432443b1889ccd459742a647617e
 public class DegreeResolver {
     private double latitude;
     private double longitude;
