@@ -1,4 +1,5 @@
 package src.subsystems;
+import src.DegreeResolver;
 import src.model.*;
 
 import com.fazecast.jSerialComm.SerialPort;

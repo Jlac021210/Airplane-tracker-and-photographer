@@ -1,28 +1,88 @@
-# Compiled class file
+# Java build output and diagnostics
 *.class
-
-# Log file
+/bin/
 *.log
+hs_err_pid*
+replay_pid*
+*.hprof
+*.dmp
 
-# BlueJ files
-*.ctxt
+# Local tools, editor state, and private inspection/checkouts
+/.inspection/
+/.vscode/*
+!/.vscode/settings.json
+!/.vscode/launch.json
+/.idea/
+/.agents/
+/.codex/
+/.aws/
+*.code-workspace
+*.iml
+.DS_Store
+Thumbs.db
 
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
+# Credentials and machine-specific configuration
+.env
+.env.*
+!.env.example
+*.local
+*.local.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+credentials.json
+secrets.json
 
-# Package Files #
-*.war
-*.nar
-*.ear
+# Archives and temporary files (keep the project's dependency JARs)
 *.zip
 *.tar.gz
 *.rar
+*.war
+*.nar
+*.ear
+*.tmp
+*.bak
+*.swp
+*.ctxt
+.mtj.tmp/
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
-hs_err_pid*
-replay_pid*
+# Only ship the decoder binaries, clean config template, license, and
+# default map's static assets. All other decoder files stay private.
+/dump1090/**
+!/dump1090/dump1090.exe
+!/dump1090/setup.exe
+!/dump1090/dump1090.example.cfg
+!/dump1090/LICENSE
+!/dump1090/README.md
+!/dump1090/airport-codes.csv
+!/dump1090/airport-frequencies.csv
+!/dump1090/web_root-Tar1090/
+!/dump1090/web_root-Tar1090/**
 
-dump1090/*
-!dump1090/.gitkeep
-.vscode/
-bin/
+# Never publish receiver coordinates, captures, caches, or live JSON,
+# including any such files generated inside an otherwise allowed directory.
+/dump1090/**/*.cfg
+!/dump1090/dump1090.example.cfg
+/dump1090/**/*.log
+/dump1090/**/*.sqlite
+/dump1090/**/*.sqlite-*
+/dump1090/**/aircraft-database*
+/dump1090/**/aircraft.json
+/dump1090/**/receiver.json
+/dump1090/**/stats.json
+/dump1090/**/outline.json
+/dump1090/**/history*.json
+/dump1090/**/chunks*.json
+/dump1090/**/data.json
+/dump1090/**/frames.js
+/dump1090/**/traces/
+/dump1090/**/data/
+/dump1090/**/*.bin
+/dump1090/**/*.iq
+/dump1090/**/*.wav
+/dump1090/**/*.pcap
+/dump1090/**/*.pcapng
+# Local map settings can contain a receiver location.
+/dump1090/web_root-Tar1090/config.js

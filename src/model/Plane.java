@@ -1,5 +1,6 @@
 package src.model;
 
+
 public class Plane {
     private String icaOaci;
     private String callsign;
@@ -49,4 +50,9 @@ public class Plane {
     private void updateTimestamp(){
         this.lastSeen = System.currentTimeMillis();
     }
+    //add cache map to store planes based on call sign update it using rtl sdr but use google guava to remove planes after 5 seconds without an update
+
+    //add find closest plane try to also find the one that has been updated reecently 
+    
+    //add plane position predictor based on the speed and velocity using old data to predict where it will be
 }

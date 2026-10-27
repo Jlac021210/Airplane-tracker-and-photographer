@@ -20,5 +20,5 @@ The Java `RTLSDR` subsystem accesses the RTL2832U over USB using usb4java, tunes
 
 The project includes usb4java's Windows x64 native binding. The RTL-SDR must be installed with a WinUSB-compatible driver and must not be in use by another application. Start the Java program and type `quit` to stop receiving.
 <p align="center">
-  <strong>Most of RTLSDR.java was written by GPT-5.6 Luna due to the complexity of decoding the radio signals and I could not figure out how to do it myself.</strong>
+  <strong>GPT-6.1 Sol assisted in writing RTLSDR.java due to many libraries that were needed being new to me.</strong>
 </p>

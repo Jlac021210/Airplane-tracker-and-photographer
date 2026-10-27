@@ -2,7 +2,6 @@ package src;
 
 import java.util.Scanner;
 
-import src.model.DegreeResolver;
 import src.subsystems.*;
 
 public class Main { 
@@ -10,6 +9,7 @@ public class Main {
         Gps gps = new Gps(); 
         DegreeResolver degreeResolver = new DegreeResolver(gps);
         //Arduino arduino = new Arduino(degreeResolver);
+        //Camera camera = new Camera();
         System.out.println("GPS fix acquired: " + gps.getLatitude() + ", " + gps.getLongitude() + ", Altitude: " + gps.getAltitude() + " meters");
         RTLSDR rtl = new RTLSDR(gps.getLatitude(), gps.getLongitude());
         Scanner scanner = new Scanner(System.in);

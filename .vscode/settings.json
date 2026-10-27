@@ -1,0 +1,32 @@
+{
+    "java.project.sourcePaths":  [
+                                     ""
+                                 ],
+    "java.project.outputPath":  "bin",
+    "java.project.referencedLibraries":  [
+                                             "lib/**/*.jar"
+                                         ],
+    "python-envs.defaultEnvManager":  "ms-python.python:system",
+    "editor.inlineSuggest.enabled":  true,
+    "editor.quickSuggestions":  {
+                                    "other":  "inline",
+                                    "comments":  "inline",
+                                    "strings":  "inline"
+                                },
+    "github.copilot.editor.enableAutoCompletions":  {
+                                                        "*":  true,
+                                                        "plaintext":  true,
+                                                        "markdown":  true,
+                                                        "scminput":  true
+                                                    },
+    "java.settings.url":  ".settings/org.eclipse.jdt.core.prefs",
+    "java.autobuild.enabled":  true,
+    "java.debug.settings.forceBuildBeforeLaunch":  true,
+    "java.debug.settings.onBuildFailureProceed":  false,
+    "java.project.resourceFilters":  [
+                                         "node_modules",
+                                         "\\.git",
+                                         "\\.inspection",
+                                         "dump1090"
+                                     ]
+}

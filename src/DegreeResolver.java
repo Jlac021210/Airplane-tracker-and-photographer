@@ -1,5 +1,6 @@
-package src.model;
+package src;
 
+import src.model.Plane;
 import src.subsystems.Gps;
 //this SHOULD work, but i have not tested it yet due to no planes flying overhead when i made it... it uses the haversine formula so the math is right but it may be implemented wrong.
 public class DegreeResolver {
