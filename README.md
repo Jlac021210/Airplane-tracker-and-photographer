@@ -21,6 +21,17 @@ Hello, this is a passion project I have been working on for a few months. It rec
 Java starts the bundled `dump1090` decoder after getting a GPS fix, then prints its aircraft JSON once a second. Camera and motor control are still in progress.
 
 Install a WinUSB-compatible driver for the RTL-SDR and close any other apps using it. Set your GPS port in `src/subsystems/Gps.java` (mine is `COM6`), then run `src.Main` from the project root or press F5 in VS Code. Type `quit` to stop. Decoder output goes to `dump1090/java-process.log`.
-<p align="center">
-  <strong>GPT-6.1 Sol assisted in writing RTLSDR.java due to many libraries that were needed being new to me.</strong>
-</p>
+
+### Issues I have encountered
+
+* Integrating native decoding libraries with Java was more complex than expected. Using dump1090 lets me focus on aircraft tracking and camera control.
+
+### What I have learned
+
+* How to handle exceptions using try/catch statements.
+* How to communicate with serial devices in Java, building on my experience with Arduino.
+* How to work with file paths and configuration files in Java.
+
+### Acknowledgments
+
+GPT-6.1 Sol assisted with `RTLSDR.java`, particularly configuration file paths and exception handling. I used that assistance to learn how the libraries worked and integrate them into the project.
