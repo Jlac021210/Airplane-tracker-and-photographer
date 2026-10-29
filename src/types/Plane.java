@@ -10,7 +10,6 @@ public class Plane {
     private double speedMPS;
     private double climbRate;
     private double heading;
-    private ArrayList<Coordinate> history;
 
     public Plane(String icaOaci, String callsign, double latitude, double longitude, double altitude, double speedMPS, double climbRate, double heading) {
         updateTimestamp();
@@ -20,7 +19,6 @@ public class Plane {
         this.climbRate = climbRate;
         this.heading = heading;
         this.coordinate = new Coordinate(latitude, longitude, altitude);
-        this.history = new ArrayList<>();
     }
     public String getIcaOaci() { return icaOaci; }
     public String getCallsign() { return callsign; }
@@ -37,7 +35,6 @@ public class Plane {
         this.coordinate.setLatitude(latitude);
         this.coordinate.setLongitude(longitude);
         this.coordinate.setAltitude(altitude);
-        this.history.add(new Coordinate(latitude, longitude, altitude));
     }
     private void updateTimestamp(){
         this.lastSeen = System.currentTimeMillis();
