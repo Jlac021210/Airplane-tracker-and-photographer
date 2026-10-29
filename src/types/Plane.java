@@ -1,6 +1,9 @@
 package src.types;
 import src.types.Coordinate;
 import java.util.ArrayList;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import java.util.concurrent.TimeUnit;
 
 public class Plane {
     private String icaOaci;
@@ -10,6 +13,7 @@ public class Plane {
     private double speedMPS;
     private double climbRate;
     private double heading;
+    private  static Cache<String, Plane> cache = CacheBuilder.newBuilder().expireAfterWrite(5, TimeUnit.SECONDS).build();
 
     public Plane(String icaOaci, String callsign, double latitude, double longitude, double altitude, double speedMPS, double climbRate, double heading) {
         updateTimestamp();
@@ -19,12 +23,10 @@ public class Plane {
         this.climbRate = climbRate;
         this.heading = heading;
         this.coordinate = new Coordinate(latitude, longitude, altitude);
+        cache.put(callsign, this);
     }
     public String getIcaOaci() { return icaOaci; }
     public String getCallsign() { return callsign; }
-    public double getLatitude() { return this.coordinate.getLatitude(); }
-    public double getLongitude() { return this.coordinate.getLongitude(); }
-    public double getAltitude() { return this.coordinate.getAltitude(); }
     public Coordinate getCoordinate() { return coordinate; }
     public long getLastSeen(){ return lastSeen; }
     public double getSpeedMPS() { return speedMPS; }
@@ -35,6 +37,7 @@ public class Plane {
         this.coordinate.setLatitude(latitude);
         this.coordinate.setLongitude(longitude);
         this.coordinate.setAltitude(altitude);
+        cache.put(callsign, this);
     }
     private void updateTimestamp(){
         this.lastSeen = System.currentTimeMillis();
@@ -48,14 +51,25 @@ public class Plane {
         double northMeters = distance * Math.cos(bearing);
         double eastMeters = distance * Math.sin(bearing);
 
-        double nextLat = getLatitude() + northMeters / 111320.0;
-        double nextLon = getLongitude() + eastMeters / (111320.0 * Math.cos(Math.toRadians(getLatitude())));
-        double nextAltitude = getAltitude() + climbRate * seconds;
+        double nextLat = coordinate.getLatitude() + northMeters / 111320.0;
+        double nextLon = coordinate.getLongitude() + eastMeters / (111320.0 * Math.cos(Math.toRadians(coordinate.getLatitude())));
+        double nextAltitude = coordinate.getAltitude() + climbRate * seconds;
         return new Coordinate(nextLat, nextLon, nextAltitude);
     }
-    
-    //add cache map to store planes based on call sign update it using rtl sdr but use google guava to remove planes after 5 seconds without an update
-
-    //add find closest plane try to also find the one that has been updated reecently 
+    public static Plane getByCallsign(String callsign) {
+        return cache.getIfPresent(callsign);
+    }
+    public static Plane getClosestPlane() {
+        Plane closest = null;
+        double minDistance = Double.MAX_VALUE;
+        for (Plane plane : cache.asMap().values()) {
+            double distance = plane.getCoordinate().getDistance(Coordinate.getCurrentPosition());
+            if (distance < minDistance) {
+                minDistance = distance;
+                closest = plane;
+            }
+        }
+        return closest;
+    }
     
 }

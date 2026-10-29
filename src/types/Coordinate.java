@@ -20,32 +20,35 @@ public class Coordinate {
     public void setLongitude(double longitude) { this.longitude = longitude; }
     public void setAltitude(double altitude) { this.altitude = altitude; }  
 
-    public double getYaw(int inXSeconds) {//will replace so it will predict pos where the plane is as radio signals are delayed
+    public double getYaw(Coordinate coordinate) {//will replace so it will predict pos where the plane is as radio signals are delayed
         requireGps();
         double lat1 = Math.toRadians(gps.getLatitude());
-        double lat2 = Math.toRadians(this.latitude);
-        double dLon = Math.toRadians(this.longitude - gps.getLongitude());
+        double lat2 = Math.toRadians(coordinate.getLatitude());
+        double dLon = Math.toRadians(coordinate.getLongitude() - gps.getLongitude());
         double y = Math.sin(dLon) * Math.cos(lat2);
         double x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
         double yaw = Math.toDegrees(Math.atan2(y, x));
         return (yaw + 360) % 360;
     }
-    public double getPitch(int inXseconds) {//will replace so it will predict pos where the plane is as radio signals are delayed
+    public double getPitch(Coordinate coordinate) {//will replace so it will predict pos where the plane is as radio signals are delayed
         requireGps();
-        double distance = getDistance(inXseconds);
+        double distance = getDistance(coordinate);
         double pitch = Math.toDegrees(Math.atan2(this.altitude - gps.getAltitude(), distance));
         return pitch;
     }
-    private double getDistance(int inXSeconds) {//will replace so it will predict pos where the plane is as radio signals are delayed
+    public double getDistance(Coordinate coordinate) {//will replace so it will predict pos where the plane is as radio signals are delayed
         requireGps();
-        double northMeters = (this.latitude - gps.getLatitude()) * 111320.0;
-        double eastMeters = (this.longitude - gps.getLongitude())
-                * 111320.0 * Math.cos(Math.toRadians(gps.getLatitude()));
+        double northMeters = (coordinate.getLatitude() - gps.getLatitude()) * 111320.0;
+        double eastMeters = (coordinate.getLongitude() - gps.getLongitude()) * 111320.0 * Math.cos(Math.toRadians(gps.getLatitude()));
         return Math.hypot(northMeters, eastMeters);
     }
     private static void requireGps() {
         if (gps == null) {
             throw new IllegalStateException("GPS instance must be set");
         }
+    }
+    public static Coordinate getCurrentPosition() {
+        requireGps();
+        return new Coordinate(gps.getLatitude(), gps.getLongitude(), gps.getAltitude());
     }
 }

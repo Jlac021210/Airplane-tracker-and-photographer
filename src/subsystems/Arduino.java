@@ -23,9 +23,9 @@ public class Arduino {
         port.getOutputStream().flush();
     }
     public String createDataPackage(Plane plane) {
-        Coordinate target = plane.predictPosition(1);
-        double yaw = target.getYaw(0);
-        double pitch = target.getPitch(0);
+        Coordinate target = plane.predictPosition(2);
+        double yaw = target.getYaw(target);
+        double pitch = target.getPitch(target);
         return pitch +" " + yaw;
     }
 }

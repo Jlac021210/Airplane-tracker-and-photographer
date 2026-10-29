@@ -44,7 +44,8 @@ public class RTLSDR {
         try {
             while (process.isAlive()) {
                 try {
-                    System.out.println(client.send(request, HttpResponse.BodyHandlers.ofString()).body());//change to update plane chache map
+                    String json = client.send(request, HttpResponse.BodyHandlers.ofString()).body();
+                    parseAircraftJson(json);
                 } catch (IOException ignored) {
                     // prbly still starting up
                 }
@@ -53,6 +54,9 @@ public class RTLSDR {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+    private void parseAircraftJson(String json) {
+        System.out.println(json);
     }
     public void stop() {//shutdown will run when quit is typed can be called to also stop the process
         receiverThread.interrupt();
