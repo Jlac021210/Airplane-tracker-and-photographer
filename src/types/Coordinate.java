@@ -20,7 +20,7 @@ public class Coordinate {
     public void setLongitude(double longitude) { this.longitude = longitude; }
     public void setAltitude(double altitude) { this.altitude = altitude; }  
 
-    public double getYaw(Coordinate coordinate) {//will replace so it will predict pos where the plane is as radio signals are delayed
+    public double getYaw(Coordinate coordinate) {
         requireGps();
         double lat1 = Math.toRadians(gps.getLatitude());
         double lat2 = Math.toRadians(coordinate.getLatitude());
@@ -30,13 +30,13 @@ public class Coordinate {
         double yaw = Math.toDegrees(Math.atan2(y, x));
         return (yaw + 360) % 360;
     }
-    public double getPitch(Coordinate coordinate) {//will replace so it will predict pos where the plane is as radio signals are delayed
+    public double getPitch(Coordinate coordinate) {
         requireGps();
         double distance = getDistance(coordinate);
         double pitch = Math.toDegrees(Math.atan2(this.altitude - gps.getAltitude(), distance));
         return pitch;
     }
-    public double getDistance(Coordinate coordinate) {//will replace so it will predict pos where the plane is as radio signals are delayed
+    public double getDistance(Coordinate coordinate) {
         requireGps();
         double northMeters = (coordinate.getLatitude() - gps.getLatitude()) * 111320.0;
         double eastMeters = (coordinate.getLongitude() - gps.getLongitude()) * 111320.0 * Math.cos(Math.toRadians(gps.getLatitude()));

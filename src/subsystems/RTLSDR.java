@@ -1,5 +1,8 @@
 package src.subsystems;
+import src.types.Coordinate;
+import src.types.Plane;
 
+import java.util.ArrayList;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -12,6 +15,11 @@ import java.time.Duration;
 public class RTLSDR {
     private final Process process;
     private final Thread receiverThread;
+    private String tempHex;
+    private Coordinate tempCoordinate;
+    private double tempSpeedMPS;
+    private double tempClimbRate;
+    private double tempHeading;
 
     public RTLSDR(double lat, double lon) throws IOException {
         Path executable = Path.of(System.getProperty("dump1090.executable","dump1090/dump1090.exe")).toAbsolutePath();
@@ -56,7 +64,14 @@ public class RTLSDR {
         }
     }
     private void parseAircraftJson(String json) {
+        //add arraylist
         System.out.println(json);
+        
+    }
+    private void createOrUpdatePlane(String hex, double latitude, double longitude, double altitude, double speedMPS, double climbRate, double heading){
+        if (Plane.getByHex(hex)!=null){
+            
+        }
     }
     public void stop() {//shutdown will run when quit is typed can be called to also stop the process
         receiverThread.interrupt();

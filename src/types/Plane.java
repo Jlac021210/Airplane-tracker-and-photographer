@@ -3,61 +3,52 @@ import src.types.Coordinate;
 import java.util.ArrayList;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import java.util.concurrent.TimeUnit;
-
+import java.time.Duration;
 public class Plane {
-    private String icaOaci;
-    private String callsign;
+    private String hex;
     private Coordinate coordinate;
-    private long lastSeen;
     private double speedMPS;
     private double climbRate;
     private double heading;
-    private  static Cache<String, Plane> cache = CacheBuilder.newBuilder().expireAfterWrite(5, TimeUnit.SECONDS).build();
+    private double timeStamp;
+    private static Duration duration = Duration.ofSeconds(5);
+    private  static Cache<String, Plane> cache = CacheBuilder.newBuilder().expireAfterWrite(duration).build();
 
-    public Plane(String icaOaci, String callsign, double latitude, double longitude, double altitude, double speedMPS, double climbRate, double heading) {
-        updateTimestamp();
-        this.icaOaci = icaOaci;
-        this.callsign = callsign;
+    public Plane(String hex, double latitude, double longitude, double altitude, double speedMPS, double climbRate, double heading) {
+        updateTimeStamp();
+        this.hex = hex;
         this.speedMPS = speedMPS;
         this.climbRate = climbRate;
         this.heading = heading;
         this.coordinate = new Coordinate(latitude, longitude, altitude);
-        cache.put(callsign, this);
+        cache.put(hex, this);
     }
-    public String getIcaOaci() { return icaOaci; }
-    public String getCallsign() { return callsign; }
+    private void updateTimeStamp() {
+        this.timeStamp = System.currentTimeMillis();
+    } 
     public Coordinate getCoordinate() { return coordinate; }
-    public long getLastSeen(){ return lastSeen; }
-    public double getSpeedMPS() { return speedMPS; }
-    public double getClimbRate() { return climbRate; }
-    public double getHeading() { return heading; }
     public void update(double latitude, double longitude, double altitude) {
-        updateTimestamp();
+        updateTimeStamp();
         this.coordinate.setLatitude(latitude);
         this.coordinate.setLongitude(longitude);
         this.coordinate.setAltitude(altitude);
-        cache.put(callsign, this);
-    }
-    private void updateTimestamp(){
-        this.lastSeen = System.currentTimeMillis();
+        cache.put(hex, this);
     }
     public Coordinate predictPosition(int seconds) {
-        if (seconds < 0) {
-            throw new IllegalArgumentException("Can't be negative");
-        }
+        if (seconds < 0) { throw new IllegalArgumentException("Can't be negative"); }
+        double time = (System.currentTimeMillis()-this.timeStamp) / 1000 + seconds;
         double bearing = Math.toRadians(heading);
-        double distance = speedMPS * seconds;
+        double distance = speedMPS * time;
         double northMeters = distance * Math.cos(bearing);
         double eastMeters = distance * Math.sin(bearing);
 
         double nextLat = coordinate.getLatitude() + northMeters / 111320.0;
         double nextLon = coordinate.getLongitude() + eastMeters / (111320.0 * Math.cos(Math.toRadians(coordinate.getLatitude())));
-        double nextAltitude = coordinate.getAltitude() + climbRate * seconds;
+        double nextAltitude = coordinate.getAltitude() + climbRate * time;
         return new Coordinate(nextLat, nextLon, nextAltitude);
     }
-    public static Plane getByCallsign(String callsign) {
-        return cache.getIfPresent(callsign);
+    public static Plane getByHex(String hex) {
+        return cache.getIfPresent(hex);
     }
     public static Plane getClosestPlane() {
         Plane closest = null;
